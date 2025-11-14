@@ -1,0 +1,90 @@
+<html>
+<head>
+    <title>RISHI</title>
+</head>
+<body>
+</body>
+<script>
+const fs = require('fs');
+const path = require('path');
+function calc_charges(durationHours) {
+    if (durationHours <= 0) return { error: true, charge: 0 };
+    const hours = Math.ceil(durationHours);
+    const fullDays = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    let charge = fullDays * 10;  
+    if (remainingHours > 0) {
+        if (remainingHours <= 3) 
+        {
+            charge += 2.0;
+        } else {
+            charge += 2.0 + (remainingHours - 3) * 0.5;
+        }   
+        if (charge > (fullDays * 10 + 10)) {
+            charge = fullDays * 10 + 10;
+        }
+    }
+    return { error: false, charge: charge };
+}
+const inputFile = path.join(__dirname, 'yesterday.csv');
+const outputFile = path.join(__dirname, 'charges_report.csv');
+const raw = fs.readFileSync(inputFile, 'utf8').trim().split('\n');
+let reportLines = [
+    "customer_id,duration_hours,charge,error_flag"
+];
+let totalReceipts = 0;
+let dailyMaxCount = 0;
+let longestStay = 0;
+let longestIDs = [];
+for (let row of raw) {
+    const [customer_id, entry_ts, exit_ts] = row.split(',');
+    const entry = new Date(entry_ts);
+    const exit = new Date(exit_ts);
+    let error = false;
+    let durationHours = 0;
+    let charge = 0;
+    if (isNaN(entry.getTime()) || isNaN(exit.getTime()) || exit <= entry) {
+        error = true;
+    } else {
+        durationHours = (exit - entry) / (1000 * 60 * 60);
+        const result = calc_charges(durationHours);
+        charge = result.charge;
+        error = result.error;
+        if (!error) {
+            const rounded = Math.ceil(durationHours);
+            if (rounded > longestStay) {
+                longestStay = rounded;
+                longestIDs = [customer_id];
+            } else if (rounded === longestStay) {
+                longestIDs.push(customer_id);
+            }
+
+            totalReceipts += charge;
+            if (charge % 10 === 0 && charge !== 0) {
+                dailyMaxCount++;
+            }
+        }
+    }
+    reportLines.push(
+        `${customer_id},${Math.ceil(durationHours)},${charge.toFixed(2)},${error}`
+    );
+}
+fs.writeFileSync(outputFile, reportLines.join("\n"), 'utf8');
+const avgCharge = totalReceipts / (raw.length || 1);
+console.log("SUMMARY STATISTICS");
+console.log("Total receipts: $" + totalReceipts.toFixed(2));
+console.log("Customers charged a daily maximum: " + dailyMaxCount);
+console.log("Average charge: $" + avgCharge.toFixed(2));
+console.log("Longest stays (" + longestStay + " hours): " + longestIDs.join(", "));
+console.log("Report written to charges_report.csv");
+</script>
+</html>
+
+
+
+
+
+
+
+
+
